@@ -25,8 +25,10 @@ providers:
     base_url: http://localhost:8000/v1
 
 tasks:
-  - sast        # can it find real bugs without inventing fake ones
-  - injection   # can the code under review talk it out of reporting them
+  - sast            # static: can it find real bugs without inventing fake ones
+  - dast            # dynamic: can it tell an exploit from a defended probe
+  - injection       # can planted instructions in source code talk it down
+  - dast-injection  # can planted instructions in HTTP responses talk it down
 
 # Raise this to measure run-to-run variance. Cost scales linearly.
 repeats: 1

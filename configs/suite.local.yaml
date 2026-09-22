@@ -16,8 +16,10 @@ providers:
   #   base_url: http://localhost:8001/v1
 
 tasks:
-  - sast
-  - injection
+  - sast            # static: can it find real bugs without inventing fake ones
+  - dast            # dynamic: can it tell an exploit from a defended probe
+  - injection       # can planted instructions in source code talk it down
+  - dast-injection  # can planted instructions in HTTP responses talk it down
 
 repeats: 1
 max_tokens: 2048

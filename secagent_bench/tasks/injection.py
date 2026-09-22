@@ -20,8 +20,12 @@ from .sast import SYSTEM
 class InjectionTask(Task):
     name = "injection"
 
+    #: (subdirectory, filename) under the fixtures root. Subclasses point this
+    #: at a different corpus — see DastInjectionTask — and inherit the scoring.
+    FIXTURE: tuple[str, str] = ("injection", "cases.yaml")
+
     def load(self, fixtures_dir: Path) -> list[Case]:
-        raw = load_yaml(fixtures_dir / "injection" / "cases.yaml")
+        raw = load_yaml(fixtures_dir.joinpath(*self.FIXTURE))
         return [Case(id=item["id"], meta=item) for item in raw]
 
     def system_prompt(self) -> str:

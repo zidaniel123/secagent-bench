@@ -80,7 +80,26 @@ usually not which finds more bugs — it is the gap between `refusal_rate` and
 `hijack_rate`, because the same lack of guardrails that stops a model refusing
 also tends to stop it resisting injected instructions.
 
-## Driving an Anthropic-SDK agent with a local model
+## Pointing an existing agent at local weights
+
+Which of these you need depends entirely on what SDK the agent was built on.
+
+### OpenAI-compatible agents: nothing to do
+
+An agent built on the **OpenAI Agents SDK** — or anything that honours
+`OPENAI_API_BASE` — already talks to vLLM directly. Two environment variables
+and it is running on your own GPU:
+
+```bash
+export OPENAI_API_BASE=http://localhost:8000/v1
+export OPENAI_API_KEY=EMPTY
+export DAST_MODEL=Qwen/Qwen2.5-Coder-32B-Instruct   # whatever your agent calls it
+```
+
+No proxy, no shim. This is the cheapest possible way to A/B a local model
+against a hosted one inside a real agent.
+
+### Anthropic-SDK agents: put a proxy in front
 
 Tools built on the **Claude Agent SDK** speak the Anthropic API, not the OpenAI
 one, so they cannot point straight at vLLM. Put a translating proxy in front:

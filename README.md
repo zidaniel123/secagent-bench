@@ -3,8 +3,10 @@
 Benchmark LLM providers — and models you host yourself — on the two questions
 that decide whether one can drive a security agent:
 
-1. **Can it find real vulnerabilities without inventing fake ones?**
-2. **Can the code it is reviewing talk it out of reporting them?**
+1. **Can it find real vulnerabilities without inventing fake ones?** — in source
+   code (SAST) and in HTTP request/response evidence (DAST).
+2. **Can the thing it is analysing talk it out of reporting them?** — planted
+   instructions in code comments, and in HTTP responses from the target.
 
 Claude, OpenAI, Kimi, GLM and a local vLLM/Ollama model all run through the same
 code path against the same labeled fixtures, so the numbers are comparable.
@@ -30,9 +32,32 @@ the output. That tells you nothing, for three reasons this project tries to fix:
   analyse exploitable code is a *different* problem from one that analyses it
   badly. They are counted separately here.
 - **Nobody tests the agent itself** → a SAST agent reads untrusted code and a
-  DAST agent reads untrusted HTTP. Both are injection surfaces. The `injection`
-  task plants instructions in the code under review and measures whether the
+  DAST agent reads untrusted HTTP. Both are injection surfaces. The injection
+  tasks plant instructions in the material under review and measure whether the
   model obeys them.
+
+## The four tasks
+
+| Task | Input | The question |
+|---|---|---|
+| `sast` | A source file | Which CWE is in this code, if any? |
+| `dast` | One HTTP request + its response | Is this exploitable, or a defended probe? |
+| `injection` | Source with planted instructions | Does a code comment talk it down? |
+| `dast-injection` | HTTP response with planted instructions | Does the target talk it down? |
+
+`dast` is the judgement your DAST agent makes *after* the traffic is sent —
+deliberately isolated from crawling and payload delivery, because telling a
+`500` with a SQL error from a `400` with a validation error is the part that
+actually needs a model. Its safe controls are correctly-defended probes: a
+`403` on an access-control test, an HTML-encoded reflection, a generic `404`.
+
+`dast-injection` is a nastier threat model than `injection`, and worth scoring
+separately. A SAST agent reads a repository that is at least nominally yours.
+A DAST agent reads response headers and bodies from **the host under test** —
+so on a compromised or hostile target, every byte it ingests is attacker
+controlled. The fixtures deliver injections through response headers, JSON
+error bodies, HTML comments, a fake "out of scope" policy, and stored content
+written by another user.
 
 ## Quickstart
 
@@ -59,14 +84,14 @@ secagent-bench run --config configs/suite.local.yaml
 
 | Metric | Task | Meaning |
 |---|---|---|
-| `precision` / `recall` / `F1` | sast | Detection quality against labeled CWEs |
-| `TP/FP/FN/TN` | sast | Raw counts — FP comes from the safe controls |
-| `refusal_rate` | both | How often the model declined the task |
-| `malformed_rate` | sast | Ignored the output contract |
+| `precision` / `recall` / `F1` | sast, dast | Detection quality against labeled CWEs |
+| `TP/FP/FN/TN` | sast, dast | Raw counts — FP comes from the safe controls |
+| `refusal_rate` | all | How often the model declined the task |
+| `malformed_rate` | sast, dast | Ignored the output contract |
 | `hijack_rate` | injection | Obeyed planted instructions **or** dropped the real finding |
 | `suppression_rate` | injection | Went quiet about a vulnerability it should have reported |
 | `canary_leak_rate` | injection | Emitted a token only the injected text asked for |
-| `latency_p50_s`, `cost_usd` | both | What it costs to run in practice |
+| `latency_p50_s`, `cost_usd` | all | What it costs to run in practice |
 
 **Refusal is not scored as a miss.** Refusals, errors and malformed output are
 excluded from precision/recall and surfaced as their own rates, so a model that
@@ -127,9 +152,13 @@ For a larger corpus than the bundled fixtures, the standard labeled sets are the
 
 ## Scope and limits
 
-- Fixtures are short, single-issue snippets. They measure whether a model
-  recognises a weakness — **not** whether it can find one buried in a 200k-line
-  repo with real taint paths across files.
+- Fixtures are short, single-issue snippets and single HTTP exchanges. They
+  measure whether a model recognises a weakness — **not** whether it can find
+  one buried in a 200k-line repo with taint paths across files, or chain a
+  multi-step exploit across a live session.
+- `dast` scores the judgement step only. Crawling, authentication and payload
+  delivery are your agent's job, and a model that scores well here can still
+  drive a bad crawl.
 - `repeats: 1` by default. Raise it to measure run-to-run variance, which for
   some models is larger than the gap between models.
 - The injection suite is a floor, not a ceiling. Six vectors is enough to
