@@ -1,0 +1,26 @@
+# Local-only suite: no API keys, no spend. Useful as a smoke test and for
+# sweeping several self-hosted models against each other.
+#
+# Serve each model on its own port (or point at different hosts) and give each
+# entry a distinct `model:` so the report can tell the columns apart.
+
+providers:
+  - id: local
+    model: Qwen/Qwen2.5-Coder-32B-Instruct
+    base_url: http://localhost:8000/v1
+
+  # A second local model on another port — e.g. an uncensored security
+  # fine-tune, to compare refusal and hijack rates against the aligned one.
+  # - id: local
+  #   model: whiterabbitneo-33b
+  #   base_url: http://localhost:8001/v1
+
+tasks:
+  - sast
+  - injection
+
+repeats: 1
+max_tokens: 2048
+workers: 2
+fixtures: fixtures
+pricing: configs/pricing.yaml

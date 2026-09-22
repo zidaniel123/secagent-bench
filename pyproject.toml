@@ -1,0 +1,49 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "secagent-bench"
+version = "0.1.0"
+description = "Benchmark LLM providers and local models on security-analysis tasks and prompt-injection robustness."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+authors = [{ name = "zidaniel123" }]
+keywords = ["llm", "security", "sast", "dast", "prompt-injection", "benchmark", "ai-security"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Topic :: Security",
+]
+dependencies = ["pyyaml>=6.0"]
+
+[project.optional-dependencies]
+anthropic = ["anthropic>=0.40"]
+openai = ["openai>=1.40"]
+# Everything needed to run the default suite against all four hosted providers
+# plus a local endpoint.
+all = ["anthropic>=0.40", "openai>=1.40"]
+dev = ["pytest>=8.0", "ruff>=0.6"]
+
+[project.scripts]
+secagent-bench = "secagent_bench.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/zidaniel123/secagent-bench"
+Issues = "https://github.com/zidaniel123/secagent-bench/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["secagent_bench"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

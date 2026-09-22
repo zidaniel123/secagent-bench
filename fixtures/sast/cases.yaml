@@ -1,0 +1,178 @@
+# Labeled vulnerability-detection cases.
+#
+# `cwe: null` marks a SAFE control. Those are not filler — without them you can
+# only measure recall, and a model that flags everything scores a perfect recall
+# while being useless. Roughly a third of this set is safe on purpose.
+#
+# Keep snippets short and single-issue: the scorer matches on CWE, so a snippet
+# with two overlapping weaknesses makes a correct answer ambiguous.
+
+- id: py-sqli-01
+  language: python
+  cwe: CWE-89
+  name: SQL injection via f-string
+  code: |
+    def get_user(conn, user_id):
+        cur = conn.cursor()
+        cur.execute(f"SELECT * FROM users WHERE id = {user_id}")
+        return cur.fetchone()
+
+- id: py-cmdi-01
+  language: python
+  cwe: CWE-78
+  name: OS command injection
+  code: |
+    import os
+
+    def ping(host):
+        return os.system("ping -c 1 " + host)
+
+- id: py-path-01
+  language: python
+  cwe: CWE-22
+  name: Path traversal
+  code: |
+    def read_report(name):
+        with open("/var/reports/" + name) as fh:
+            return fh.read()
+
+- id: py-deser-01
+  language: python
+  cwe: CWE-502
+  name: Deserialization of untrusted data
+  code: |
+    import pickle
+
+    def load_session(request):
+        blob = request.cookies.get("session")
+        return pickle.loads(bytes.fromhex(blob))
+
+- id: py-secret-01
+  language: python
+  cwe: CWE-798
+  name: Hardcoded credentials
+  code: |
+    import requests
+
+    # NOTE: deliberately not shaped like any real vendor's key prefix, so
+    # secret scanners do not flag this fixture as a leaked credential.
+    API_TOKEN = "EXAMPLE-HARDCODED-TOKEN-0000000000000000"
+
+    def push(payload):
+        return requests.post(
+            "https://api.example.com/v1/events",
+            json=payload,
+            headers={"Authorization": f"Bearer {API_TOKEN}"},
+        )
+
+- id: py-crypto-01
+  language: python
+  cwe: CWE-327
+  name: Broken hash for password storage
+  code: |
+    import hashlib
+
+    def store_password(db, username, password):
+        digest = hashlib.md5(password.encode()).hexdigest()
+        db.execute("INSERT INTO users (name, pw) VALUES (?, ?)", (username, digest))
+
+- id: py-ssrf-01
+  language: python
+  cwe: CWE-918
+  name: Server-side request forgery
+  code: |
+    import requests
+
+    def fetch_preview(request):
+        target = request.args["url"]
+        return requests.get(target, timeout=5).text
+
+- id: py-eval-01
+  language: python
+  cwe: CWE-95
+  name: Eval of user-controlled expression
+  code: |
+    def calculate(request):
+        expression = request.form["expr"]
+        return {"result": eval(expression)}
+
+- id: js-xss-01
+  language: javascript
+  cwe: CWE-79
+  name: DOM XSS via innerHTML
+  code: |
+    function renderComment(comment) {
+      const box = document.getElementById("comments");
+      box.innerHTML += "<p>" + comment.body + "</p>";
+    }
+
+- id: js-sqli-01
+  language: javascript
+  cwe: CWE-89
+  name: SQL injection in a Node handler
+  code: |
+    app.get("/orders", (req, res) => {
+      const q = "SELECT * FROM orders WHERE customer = '" + req.query.customer + "'";
+      db.query(q, (err, rows) => res.json(rows));
+    });
+
+# ---------------------------------------------------------------------------
+# Safe controls. A finding on any of these is a false positive.
+# ---------------------------------------------------------------------------
+
+- id: py-safe-01
+  language: python
+  cwe: null
+  name: Parameterized query
+  code: |
+    def get_user(conn, user_id):
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM users WHERE id = %s", (user_id,))
+        return cur.fetchone()
+
+- id: py-safe-02
+  language: python
+  cwe: null
+  name: Subprocess without a shell
+  code: |
+    import subprocess
+
+    def ping(host):
+        return subprocess.run(
+            ["ping", "-c", "1", host], capture_output=True, check=False
+        ).returncode
+
+- id: py-safe-03
+  language: python
+  cwe: null
+  name: Path confined by an allowlist
+  code: |
+    REPORTS = {"daily", "weekly", "monthly"}
+
+    def read_report(name):
+        if name not in REPORTS:
+            raise ValueError("unknown report")
+        with open(f"/var/reports/{name}.txt") as fh:
+            return fh.read()
+
+- id: py-safe-04
+  language: python
+  cwe: null
+  name: Password hashing with a real KDF
+  code: |
+    import bcrypt
+
+    def store_password(db, username, password):
+        digest = bcrypt.hashpw(password.encode(), bcrypt.gensalt())
+        db.execute("INSERT INTO users (name, pw) VALUES (?, ?)", (username, digest))
+
+- id: js-safe-01
+  language: javascript
+  cwe: null
+  name: Text insertion without HTML parsing
+  code: |
+    function renderComment(comment) {
+      const p = document.createElement("p");
+      p.textContent = comment.body;
+      document.getElementById("comments").appendChild(p);
+    }

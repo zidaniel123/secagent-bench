@@ -1,0 +1,24 @@
+# Token prices in USD per million tokens. Merged over the built-in defaults.
+#
+# The Anthropic rates below ship verified. Every other provider is `null`,
+# because this project will not guess at a price it cannot vouch for — a wrong
+# number silently corrupts the cost column, which is worse than a blank one.
+#
+# Fill these in from each provider's own pricing page. Until you do, those
+# models show "—" for cost and every other metric still works.
+#
+# Format (either form works):
+#   model-id: { input: 1.23, output: 4.56 }
+#   model-id: [1.23, 4.56]
+
+claude-opus-5:   { input: 5.00,  output: 25.00 }
+claude-sonnet-5: { input: 2.00,  output: 10.00 }
+claude-haiku-4-5:{ input: 1.00,  output: 5.00 }
+
+# --- fill these in -------------------------------------------------------
+gpt-5:    null
+kimi-k3:  null
+glm-4.6:  null
+
+# Self-hosted models are billed at zero automatically (no API charge). That is
+# marginal cost only — it does not model your hardware or power.
