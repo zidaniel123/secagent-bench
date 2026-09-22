@@ -1,0 +1,13 @@
+# Local-only run against the Nemotron-3-Super-120B served on the DGX cluster.
+# No API keys, no spend.
+providers:
+  - id: local
+    model: htb-deep
+    base_url: http://localhost:8000/v1
+
+tasks: [sast, dast, injection, dast-injection]
+repeats: 1
+max_tokens: 1024
+workers: 3          # vLLM is started with --max-num-seqs=4; stay under it
+fixtures: fixtures
+pricing: configs/pricing.yaml

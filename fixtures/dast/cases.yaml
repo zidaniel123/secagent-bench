@@ -57,6 +57,9 @@
 
 - id: dast-authz-01
   cwe: CWE-306
+  # An unauthenticated admin endpoint is reasonably called either missing
+  # authentication (306) or improper authorization (285/862).
+  accept: [CWE-285, CWE-862]
   name: Admin endpoint with no authentication
   request: |
     GET /admin/users HTTP/1.1

@@ -273,3 +273,60 @@ def test_dotenv_missing_file_is_not_an_error():
     from secagent_bench.env import load_dotenv
 
     assert load_dotenv("/nonexistent/path/.env") == []
+
+
+# --------------------------------------------------------------------------
+# Shipped configs must actually parse
+# --------------------------------------------------------------------------
+
+@pytest.mark.parametrize(
+    "name",
+    ["suite.default.yaml", "suite.local.yaml", "pricing.yaml"],
+)
+def test_shipped_configs_parse(name):
+    """A malformed shipped config breaks every user on their first run."""
+    import yaml
+
+    path = Path(__file__).resolve().parent.parent / "configs" / name
+    assert path.exists(), f"missing {name}"
+    assert yaml.safe_load(path.read_text()) is not None
+
+
+def test_shipped_suites_load_and_name_real_tasks():
+    from secagent_bench.config import load_suite
+    from secagent_bench.providers import KNOWN
+    from secagent_bench.tasks import REGISTRY
+
+    root = Path(__file__).resolve().parent.parent / "configs"
+    for name in ("suite.default.yaml", "suite.local.yaml"):
+        cfg = load_suite(root / name)
+        assert cfg.providers
+        for spec in cfg.providers:
+            assert spec.id in KNOWN, f"{name}: unknown provider {spec.id}"
+        for task in cfg.tasks:
+            assert task in REGISTRY, f"{name}: unknown task {task}"
+
+
+def test_shipped_pricing_file_loads():
+    from secagent_bench.providers.pricing import load_pricing
+
+    root = Path(__file__).resolve().parent.parent / "configs"
+    pricing = load_pricing(root / "pricing.yaml")
+    assert pricing["claude-opus-5"] == (5.00, 25.00)
+    assert pricing["claude-haiku-4-5"] == (1.00, 5.00)
+
+
+def test_accept_list_allows_taxonomy_equivalent_cwe():
+    """CWE-94 for a CWE-95 sink is a correct answer, not a miss."""
+    task = build_task("sast")
+    case = next(c for c in task.load(FIXTURES) if c.id == "py-eval-01")
+    assert task.evaluate(case, _chat('{"findings":[{"cwe":"CWE-94"}]}'))["verdict"] == "tp"
+    assert task.evaluate(case, _chat('{"findings":[{"cwe":"CWE-95"}]}'))["verdict"] == "tp"
+    # An unrelated CWE is still a miss — the accept list is not a free pass.
+    assert task.evaluate(case, _chat('{"findings":[{"cwe":"CWE-79"}]}'))["verdict"] == "fn"
+
+
+def test_accept_list_does_not_leak_into_safe_controls():
+    task = build_task("sast")
+    safe = next(c for c in task.load(FIXTURES) if c.meta.get("cwe") is None)
+    assert task.evaluate(safe, _chat('{"findings":[{"cwe":"CWE-94"}]}'))["verdict"] == "fp"

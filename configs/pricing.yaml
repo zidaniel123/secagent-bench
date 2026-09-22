@@ -11,9 +11,9 @@
 #   model-id: { input: 1.23, output: 4.56 }
 #   model-id: [1.23, 4.56]
 
-claude-opus-5:   { input: 5.00,  output: 25.00 }
-claude-sonnet-5: { input: 2.00,  output: 10.00 }
-claude-haiku-4-5:{ input: 1.00,  output: 5.00 }
+claude-opus-5: { input: 5.00, output: 25.00 }
+claude-sonnet-5: { input: 2.00, output: 10.00 }
+claude-haiku-4-5: { input: 1.00, output: 5.00 }
 
 # --- fill these in -------------------------------------------------------
 gpt-5:    null

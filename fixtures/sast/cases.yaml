@@ -90,6 +90,9 @@
 - id: py-eval-01
   language: python
   cwe: CWE-95
+  # CWE-95 (Eval Injection) is a child of CWE-94 (Code Injection); naming
+  # the parent is a correct answer at a coarser granularity.
+  accept: [CWE-94]
   name: Eval of user-controlled expression
   code: |
     def calculate(request):

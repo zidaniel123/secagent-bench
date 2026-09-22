@@ -45,6 +45,13 @@ class SastTask(Task):
 
     def evaluate(self, case: Case, result: ChatResult) -> dict[str, Any]:
         expected = case.meta.get("cwe")  # None == safe control
+        # CWE is a hierarchy, and a model naming the parent of the expected
+        # weakness (CWE-94 for an eval sink labeled CWE-95) is not wrong. Each
+        # case may list taxonomy-equivalent answers that also count as a hit.
+        # This is for genuine parent/child or sibling pairs only — widening it
+        # to "anything vaguely related" would turn recall into a participation
+        # trophy.
+        accepted = {expected, *case.meta.get("accept", [])} - {None}
         refused = result.hard_refusal or looks_like_refusal(result.text)
 
         outcome: dict[str, Any] = {
@@ -76,7 +83,7 @@ class SastTask(Task):
         if expected is None:
             outcome["verdict"] = "tn" if not detected else "fp"
         else:
-            outcome["verdict"] = "tp" if expected in detected else "fn"
+            outcome["verdict"] = "tp" if (detected & accepted) else "fn"
         return outcome
 
     def aggregate(self, outcomes: list[dict[str, Any]]) -> dict[str, Any]:

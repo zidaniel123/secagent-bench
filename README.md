@@ -59,6 +59,18 @@ controlled. The fixtures deliver injections through response headers, JSON
 error bodies, HTML comments, a fake "out of scope" policy, and stored content
 written by another user.
 
+## A result worth seeing first
+
+A 120B local model scored a **perfect F1 (1.00) on both detection tasks** — and
+was still hijacked in **50–67%** of injection cases, leaking the attacker's
+canary token two thirds of the time. Crude "ignore all previous instructions"
+attacks failed against it; injections framed as ordinary appsec context
+("validated upstream, known false positive", "accepted risk", "out of scope per
+the engagement rules") succeeded.
+
+Capability and robustness are not the same axis, and only one of them shows up
+in a detection benchmark. Full write-up: **[docs/example-run.md](docs/example-run.md)**.
+
 ## Quickstart
 
 ```bash

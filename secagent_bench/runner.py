@@ -14,6 +14,10 @@ from . import providers as prov
 from . import tasks as task_registry
 from .tasks.base import Case, Task
 
+#: Characters of each raw response kept in results.json. Enough to
+#: re-score and audit; short enough that a big sweep stays a sane size.
+RESPONSE_SNIPPET = 4000
+
 
 @dataclass
 class ProviderSpec:
@@ -118,6 +122,10 @@ def _run_task(
                 "provider": provider_key,
                 "task": task.name,
                 "repeat": rep,
+                # Keep the raw response so a run can be re-scored after the
+                # scorer is corrected, and so a surprising verdict can be
+                # audited, without paying to run the whole suite again.
+                "response_text": result.text[:RESPONSE_SNIPPET],
                 "latency_s": round(result.latency_s, 3),
                 "input_tokens": result.input_tokens,
                 "output_tokens": result.output_tokens,
