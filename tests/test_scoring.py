@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pytest
@@ -232,3 +233,43 @@ def test_all_registered_tasks_load_their_fixtures():
 
     for name in REGISTRY:
         assert build_task(name).load(FIXTURES), f"{name} has no cases"
+
+
+# --------------------------------------------------------------------------
+# .env loading
+# --------------------------------------------------------------------------
+
+def test_dotenv_loads_and_real_env_wins(tmp_path, monkeypatch):
+    from secagent_bench.env import load_dotenv
+
+    envfile = tmp_path / ".env"
+    envfile.write_text(
+        "# comment\n"
+        "\n"
+        "ALPHA_KEY=abc123\n"
+        'BETA_KEY="quoted-value"\n'
+        "export GAMMA_KEY=exported\n"
+        "EMPTY_KEY=\n"
+        "PRESET_KEY=from-file\n"
+    )
+    monkeypatch.setenv("PRESET_KEY", "from-environment")
+    for k in ("ALPHA_KEY", "BETA_KEY", "GAMMA_KEY"):
+        monkeypatch.delenv(k, raising=False)
+
+    loaded = load_dotenv(envfile)
+
+    assert os.environ["ALPHA_KEY"] == "abc123"
+    assert os.environ["BETA_KEY"] == "quoted-value"
+    assert os.environ["GAMMA_KEY"] == "exported"
+    assert "EMPTY_KEY" not in loaded          # blank values are skipped
+    # An exported variable must not be clobbered by a stale file.
+    assert os.environ["PRESET_KEY"] == "from-environment"
+    assert "PRESET_KEY" not in loaded
+    # Returns names only, never values — safe to print.
+    assert set(loaded) == {"ALPHA_KEY", "BETA_KEY", "GAMMA_KEY"}
+
+
+def test_dotenv_missing_file_is_not_an_error():
+    from secagent_bench.env import load_dotenv
+
+    assert load_dotenv("/nonexistent/path/.env") == []

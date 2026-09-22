@@ -10,11 +10,17 @@ from pathlib import Path
 from . import providers as prov
 from . import tasks as task_registry
 from .config import load_suite
+from .env import load_dotenv
 from .report import render
 from .runner import run_suite
 
 
 def _cmd_run(args: argparse.Namespace) -> int:
+    # Names only — never values. Keys stay in the file and out of the terminal.
+    loaded = load_dotenv(args.env)
+    if loaded:
+        print(f"loaded from {args.env}: {', '.join(loaded)}", file=sys.stderr)
+
     config = load_suite(args.config)
     if args.tasks:
         config.tasks = args.tasks
@@ -81,6 +87,12 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--repeats", type=int, help="runs per case (variance)")
     run.add_argument("--workers", type=int, help="concurrent requests")
     run.add_argument("--fixtures", help="path to the fixtures directory")
+    run.add_argument(
+        "--env",
+        default=".env",
+        help="env file holding provider API keys (default: .env). Real "
+        "environment variables take precedence over it.",
+    )
     run.set_defaults(func=_cmd_run)
 
     report = sub.add_parser("report", help="render a saved results file")
