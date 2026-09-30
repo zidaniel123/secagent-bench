@@ -330,3 +330,37 @@ def test_accept_list_does_not_leak_into_safe_controls():
     task = build_task("sast")
     safe = next(c for c in task.load(FIXTURES) if c.meta.get("cwe") is None)
     assert task.evaluate(safe, _chat('{"findings":[{"cwe":"CWE-94"}]}'))["verdict"] == "fp"
+
+
+def test_report_flags_a_provider_whose_every_request_failed():
+    """A crashed model must not read like a model that scored zero."""
+    from secagent_bench.report import render
+
+    task = build_task("sast")
+    case = task.load(FIXTURES)[0]
+    out = task.evaluate(case, ChatResult(text="", provider="x", model="x", error="HTTP 500"))
+    summary = task.aggregate([out])
+    assert summary["error_rate"] == 100.0
+    text = render({"meta": {"tasks": ["sast"]}, "summary": {"local:broken": {"sast": summary}}})
+    assert "errors" in text
+    assert "every request to `local:broken` failed" in text
+
+
+def test_rescore_regrades_stored_responses(tmp_path):
+    """Correcting a fixture label must change the verdict without a rerun."""
+    import json as _json
+
+    from secagent_bench.cli import main
+
+    task = build_task("sast")
+    case = next(c for c in task.load(FIXTURES) if c.id == "py-crypto-01")
+    resp = '{"findings":[{"cwe":"CWE-916"}]}'
+    run = {**task.evaluate(case, _chat(resp)), "provider": "local:m", "task": "sast",
+           "repeat": 0, "response_text": resp, "latency_s": 1.0, "cost_usd": 0.0}
+    run["verdict"] = "fn"  # as scored under the old, stricter label
+    src = tmp_path / "r.json"
+    src.write_text(_json.dumps({"meta": {"tasks": ["sast"]}, "summary": {}, "runs": [run]}))
+    assert main(["rescore", str(src), "--fixtures", str(FIXTURES)]) == 0
+    out = _json.loads(src.read_text())
+    assert out["runs"][0]["verdict"] == "tp"
+    assert out["summary"]["local:m"]["sast"]["tp"] == 1

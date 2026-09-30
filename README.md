@@ -71,6 +71,10 @@ the engagement rules") succeeded.
 Capability and robustness are not the same axis, and only one of them shows up
 in a detection benchmark. Full write-up: **[docs/example-run.md](docs/example-run.md)**.
 
+A five-model comparison on two DGX Sparks — where a model pooled across both
+boxes was the only one that was both a perfect detector and nearly
+unhijackable — is in **[docs/model-comparison.md](docs/model-comparison.md)**.
+
 ## Quickstart
 
 ```bash

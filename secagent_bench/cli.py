@@ -59,6 +59,62 @@ def _cmd_report(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_rescore(args: argparse.Namespace) -> int:
+    """Re-grade stored responses against the current fixtures and scorer.
+
+    Fixing a mislabeled case should not require paying to run the models
+    again — the raw responses are already in results.json.
+    """
+    from .providers.base import ChatResult
+
+    results = json.loads(Path(args.results).read_text())
+    fixtures = Path(args.fixtures)
+    tasks: dict[str, object] = {}
+    cases: dict[tuple[str, str], object] = {}
+    rescored: list[dict] = []
+    for r in results["runs"]:
+        name = r["task"]
+        if name not in tasks:
+            tasks[name] = task_registry.build(name)
+            for c in tasks[name].load(fixtures):
+                cases[(name, c.id)] = c
+        task, case = tasks[name], cases.get((name, r["case"]))
+        if case is None:
+            continue  # case was removed from the fixtures; drop it
+        if "response_text" not in r and not r.get("error"):
+            print(f"no stored response for {r['case']}; rerun needed", file=sys.stderr)
+            return 1
+        chat = ChatResult(
+            text=r.get("response_text", ""),
+            provider=r["provider"],
+            model=r["provider"],
+            error=r.get("error"),
+            hard_refusal=bool(r.get("refusal_category")),
+            refusal_category=r.get("refusal_category"),
+        )
+        keep = {k: r[k] for k in ("provider", "task", "repeat", "response_text",
+                                   "latency_s", "input_tokens", "output_tokens",
+                                   "cost_usd") if k in r}
+        rescored.append({**task.evaluate(case, chat), **keep})
+
+    summary: dict[str, dict] = {}
+    for key in dict.fromkeys(r["provider"] for r in rescored):
+        summary[key] = {
+            name: tasks[name].aggregate(
+                [r for r in rescored if r["provider"] == key and r["task"] == name]
+            )
+            for name in dict.fromkeys(r["task"] for r in rescored)
+            if any(r["provider"] == key and r["task"] == name for r in rescored)
+        }
+    results["summary"], results["runs"] = summary, rescored
+    results["meta"]["rescored"] = True
+    out = Path(args.out or args.results)
+    out.write_text(json.dumps(results, indent=2))
+    print(render(results))
+    print(f"wrote {out}", file=sys.stderr)
+    return 0
+
+
 def _cmd_providers(_args: argparse.Namespace) -> int:
     print("providers:")
     for name in prov.KNOWN:
@@ -99,6 +155,12 @@ def main(argv: list[str] | None = None) -> int:
     report.add_argument("results")
     report.add_argument("-o", "--out")
     report.set_defaults(func=_cmd_report)
+
+    rescore = sub.add_parser("rescore", help="re-grade a saved run against current fixtures")
+    rescore.add_argument("results")
+    rescore.add_argument("-o", "--out", help="write here instead of overwriting")
+    rescore.add_argument("--fixtures", default="fixtures")
+    rescore.set_defaults(func=_cmd_rescore)
 
     listing = sub.add_parser("providers", help="list known providers and tasks")
     listing.set_defaults(func=_cmd_providers)

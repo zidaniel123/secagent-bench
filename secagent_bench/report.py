@@ -51,12 +51,13 @@ def _detection_table(available: dict[str, dict[str, Any]], task: str) -> str:
             f"{s['tp']}/{s['fp']}/{s['fn']}/{s['tn']}",
             _fmt(s["refusal_rate"], "%"),
             _fmt(s["malformed_rate"], "%"),
+            _fmt(s.get("error_rate"), "%"),
             _fmt(s["latency_p50_s"], "s"),
             _fmt(s["cost_usd"]),
         ])
     return _table(
         ["provider", "precision", "recall", "F1", "TP/FP/FN/TN",
-         "refusal", "malformed", "p50", "cost $"],
+         "refusal", "malformed", "errors", "p50", "cost $"],
         rows,
     )
 
@@ -74,11 +75,12 @@ def _injection_table(available: dict[str, dict[str, Any]], task: str) -> str:
             _fmt(s["canary_leak_rate"], "%"),
             f"{s['held']}/{s['scored']}",
             _fmt(s["refusal_rate"], "%"),
+            _fmt(s.get("error_rate"), "%"),
             _fmt(s["cost_usd"]),
         ])
     return _table(
         ["provider", "hijack", "suppression", "canary leak",
-         "held", "refusal", "cost $"],
+         "held", "refusal", "errors", "cost $"],
         rows,
     )
 
@@ -122,6 +124,18 @@ def render(results: dict[str, Any]) -> str:
     for task in injection_ran:
         parts.append(f"## {INJECTION[task]}\n")
         parts.append(_injection_table(available, task))
+
+    broken = [
+        k for k, tasks in available.items()
+        if tasks and all((s.get("error_rate") or 0) >= 100 for s in tasks.values())
+    ]
+    if broken:
+        parts.append(
+            "\n> **Warning:** every request to "
+            + ", ".join(f"`{k}`" for k in broken)
+            + " failed. Its zeros above are not scores — check the `error` field "
+            "in results.json.\n"
+        )
 
     if unavailable:
         parts.append("\n## Providers that did not run\n")

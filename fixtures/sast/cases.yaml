@@ -68,6 +68,9 @@
 - id: py-crypto-01
   language: python
   cwe: CWE-327
+  # MD5 for *password storage* is most precisely CWE-916 (password hash with
+  # insufficient computational effort); CWE-328 (weak hash) is also defensible.
+  accept: [CWE-916, CWE-328]
   name: Broken hash for password storage
   code: |
     import hashlib
